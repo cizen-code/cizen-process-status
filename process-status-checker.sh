@@ -161,10 +161,17 @@ is_dstate_stat() {
 # v1.0.0: Notificación a usuarios de escritorio mediante process-status-notify-agent.sh
 notify_users() {
   local hash="$1"
-  command -v runuser >/dev/null 2>&1 || return 0
   local agent_bin="/usr/local/bin/process-status/process-status-notify-agent.sh"
   [[ -x "$agent_bin" ]] || agent_bin="$(dirname "$0")/process-status-notify-agent.sh"
   [[ -x "$agent_bin" ]] || return 0
+
+  # Si el checker se ejecuta como usuario no root, invocar directamente el agente del usuario actual
+  if [[ ${EUID:-0} -ne 0 ]]; then
+    setsid nohup "$agent_bin" >/dev/null 2>&1 &
+    return 0
+  fi
+
+  command -v runuser >/dev/null 2>&1 || return 0
 
   local uid user bus home sid leader line dpy wdisp desk
   while read -r uid user; do
@@ -315,13 +322,15 @@ for arg in "$@"; do
   esac
 done
 
-# Verificación de privilegios root para escaneo en disco
+# v1.0.0: Verificación de permisos de escritura para escaneo en disco
 if [[ ${EUID:-0} -ne 0 && $OPT_STDOUT -eq 0 ]]; then
-  if command -v sudo >/dev/null 2>&1; then
-    exec sudo "$0" "$@"
-  else
-    log "Este script debe ejecutarse como root para auditar el sistema completo."
-    exit 1
+  if ! [[ -w "$STATE_DIR" || ( ! -e "$STATE_DIR" && -w "$(dirname "$STATE_DIR")" ) ]]; then
+    if command -v sudo >/dev/null 2>&1 && [ -t 0 ]; then
+      exec sudo "$0" "$@"
+    else
+      log "Este script requiere permisos de root o permisos de escritura en ${STATE_DIR}."
+      exit 1
+    fi
   fi
 fi
 

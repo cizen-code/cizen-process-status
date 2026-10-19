@@ -344,6 +344,7 @@ if [[ $OPT_STDOUT -eq 0 ]]; then
     log "Otra comprobación de process-status está en curso; se omite esta ejecución."
     exit 0
   fi
+  trap 'flock -u 9 2>/dev/null || true; exec 9>&- 2>/dev/null || true' EXIT INT TERM
 fi
 
 # Variables de conteo y acumulación de alertas
@@ -818,6 +819,11 @@ rm -f "$tmp_file"
 
 printf '%s\n' "$new_hash" > "$HASH_FILE"
 chmod 644 "$HASH_FILE"
+
+# v1.0.0: Liberar el cerrojo flock y cerrar el descriptor 9 antes de notificar
+# para evitar que procesos hijos o terminales abiertas retengan el bloqueo.
+flock -u 9 2>/dev/null || true
+exec 9>&- 2>/dev/null || true
 
 log "Escaneo completado. Alertas: ${total_alerts}, Fallidas: ${COUNT_FAILED}, Zombis: ${COUNT_ZOMBIES}, Huérfanos: ${COUNT_ORPHANS}, D-State: ${COUNT_DSTATE}, Deleted: ${COUNT_DELETED}."
 

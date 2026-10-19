@@ -9,6 +9,9 @@ set -uo pipefail
 STATE_DIR="${CIZEN_PS_STATE_DIR:-/var/cache/process-status}"
 REPORT_FILE="${STATE_DIR}/report"
 
+# v1.0.0: Cerrar cualquier descriptor de archivo heredado accidentalmente (ej. lockfile)
+exec 9>&- 2>/dev/null || true
+
 # v1.0.0: Localización de scripts auxiliares
 BIN_DIR="/usr/local/bin/process-status"
 if [[ ! -x "${BIN_DIR}/process-status-checker.sh" ]]; then
@@ -225,18 +228,34 @@ fi
 # ------------------------------------------------------------------------------
 echo
 echo "==> [4/5] Comprobando volcados de memoria (coredumpctl)..."
+cd_dir="/var/lib/systemd/coredump"
+cd_files_count=0
+cd_size="0"
+if [[ -d "$cd_dir" ]]; then
+  cd_files_count="$(ls -1 "$cd_dir" 2>/dev/null | wc -l)"
+  cd_size="$(du -sh "$cd_dir" 2>/dev/null | cut -f1 || echo "-")"
+fi
+cd_count=0
 if command -v coredumpctl >/dev/null 2>&1; then
   cd_count="$(coredumpctl list --no-legend 2>/dev/null | wc -l)"
-  if (( cd_count > 0 )); then
-    info "Hay ${cd_count} volcados de memoria (coredumps) registrados."
-    read -r -p "¿Ejecutar 'coredumpctl vacuum' para purgar coredumps antiguos? [s/N] " ans_cd
-    if [[ "$ans_cd" =~ ^[SsYy] ]]; then
-      gear "Purgando coredumps..."
-      _priv coredumpctl vacuum && ok "Coredumps purgados."
+fi
+
+if (( cd_count > 0 || cd_files_count > 0 )); then
+  info "Hay ${cd_count} volcados registrados en el journal y ${cd_files_count} archivos en ${cd_dir} (${cd_size})."
+  read -r -p "¿Purgar archivos de volcados en ${cd_dir}? [s/N] " ans_cd
+  if [[ "$ans_cd" =~ ^[SsYy] ]]; then
+    gear "Eliminando archivos de coredump en ${cd_dir}..."
+    if _priv rm -f "${cd_dir}"/* 2>/dev/null; then
+      ok "Archivos de coredump eliminados correctamente."
+    else
+      warn "No se pudieron eliminar todos los archivos de coredump."
     fi
-  else
-    ok "Sin volcados de memoria acumulados."
+    gear "Aspirando registros antiguos del journal..."
+    _priv journalctl --vacuum-time=3d 2>/dev/null || true
+    ok "Mantenimiento de coredumps y logs completado."
   fi
+else
+  ok "Sin volcados de memoria acumulados."
 fi
 
 # ------------------------------------------------------------------------------
@@ -248,6 +267,7 @@ read -r -p "¿Desea ejecutar el escáner de estado ahora para refrescar el infor
 if [[ ! "$ans_scan" =~ ^[Nn] ]]; then
   if [[ -x "$CHECKER_SCRIPT" ]]; then
     gear "Ejecutando escáner de estado..."
+    exec 9>&- 2>/dev/null || true
     _priv "$CHECKER_SCRIPT" --force
     ok "Informe de estado actualizado en ${REPORT_FILE}."
   fi

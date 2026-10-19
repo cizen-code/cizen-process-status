@@ -268,8 +268,13 @@ if [[ ! "$ans_scan" =~ ^[Nn] ]]; then
   if [[ -x "$CHECKER_SCRIPT" ]]; then
     gear "Ejecutando escáner de estado..."
     exec 9>&- 2>/dev/null || true
-    _priv "$CHECKER_SCRIPT" --force
-    ok "Informe de estado actualizado en ${REPORT_FILE}."
+    if "$CHECKER_SCRIPT" --force 2>/dev/null; then
+      ok "Informe de estado actualizado en ${REPORT_FILE}."
+    elif _priv "$CHECKER_SCRIPT" --force; then
+      ok "Informe de estado actualizado en ${REPORT_FILE}."
+    else
+      err "No se pudo actualizar el informe de estado."
+    fi
   fi
 fi
 

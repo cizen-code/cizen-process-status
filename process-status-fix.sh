@@ -56,7 +56,7 @@ _priv() {
 ask() {
   local prompt="$1"
   local varname="$2"
-  printf ' %b?%b %s ' "$W" "$prompt" "$N"
+  printf ' %b?%b %s ' "$C" "$N" "$prompt"
   read -r "$varname"
 }
 

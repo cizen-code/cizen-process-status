@@ -89,7 +89,7 @@ echo
 # ------------------------------------------------------------------------------
 # 1. RESOLUCIÓN DE UNIDADES SYSTEMD FALLIDAS
 # ------------------------------------------------------------------------------
-echo "==> [1/5] Comprobando unidades systemd fallidas..."
+echo "==> [1/6] Comprobando unidades systemd fallidas..."
 failed_sys=()
 while read -r u_unit _; do
   [[ -n "$u_unit" ]] && failed_sys+=("$u_unit")
@@ -147,10 +147,55 @@ if (( ${#failed_usr[@]} > 0 )); then
 fi
 
 # ------------------------------------------------------------------------------
-# 2. RESOLUCIÓN DE PROCESOS ZOMBI (DEFUNCT)
+# 2. SERVICIOS HABILITADOS PERO INACTIVOS (ARRANQUE)
 # ------------------------------------------------------------------------------
 echo
-echo "==> [2/5] Comprobando procesos zombis (defunct)..."
+echo "==> [2/6] Comprobando servicios habilitados pero inactivos en arranque..."
+inactive_enabled_list=()
+while read -r s_file _ s_state; do
+  [[ "$s_file" =~ \.service$ ]] || continue
+  s_active="$(systemctl is-active "$s_file" 2>/dev/null || echo "inactive")"
+  if [[ "$s_active" == "inactive" || "$s_active" == "failed" ]]; then
+    s_type="$(systemctl show "$s_file" -p Type --value 2>/dev/null || echo "simple")"
+    if [[ "$s_type" != "oneshot" ]]; then
+      inactive_enabled_list+=("$s_file")
+    fi
+  fi
+done < <(systemctl list-unit-files --type=service --state=enabled --no-legend 2>/dev/null)
+
+if (( ${#inactive_enabled_list[@]} > 0 )); then
+  warn "Se detectaron ${#inactive_enabled_list[@]} servicios habilitados en arranque que no están activos:"
+  for s_unit in "${inactive_enabled_list[@]}"; do
+    printf '  • Servicio: %s (habilitado en arranque, actualmente inactivo)\n' "$s_unit"
+    ask "¿Desea deshabilitar '${s_unit}' del arranque (systemctl disable)? [s/N]" ans_dis
+    if [[ "$ans_dis" =~ ^[SsYy] ]]; then
+      gear "Deshabilitando ${s_unit} del arranque..."
+      if _priv systemctl disable "$s_unit"; then
+        ok "Servicio ${s_unit} deshabilitado con éxito."
+      else
+        err "No se pudo deshabilitar ${s_unit}."
+      fi
+    else
+      ask "¿Desea iniciar '${s_unit}' ahora (systemctl start)? [s/N]" ans_start
+      if [[ "$ans_start" =~ ^[SsYy] ]]; then
+        gear "Iniciando ${s_unit}..."
+        if _priv systemctl start "$s_unit"; then
+          ok "Servicio ${s_unit} iniciado con éxito."
+        else
+          err "Fallo al iniciar ${s_unit}."
+        fi
+      fi
+    fi
+  done
+else
+  ok "Todos los servicios habilitados de tipo persistente están activos."
+fi
+
+# ------------------------------------------------------------------------------
+# 3. RESOLUCIÓN DE PROCESOS ZOMBI (DEFUNCT)
+# ------------------------------------------------------------------------------
+echo
+echo "==> [3/6] Comprobando procesos zombis (defunct)..."
 zombie_pids=()
 while read -r z_pid z_ppid z_stat z_comm; do
   [[ -n "$z_pid" ]] || continue
@@ -197,10 +242,10 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 3. PROCESOS CON BINARIOS BORRADOS EN DISCO
+# 4. PROCESOS CON BINARIOS BORRADOS EN DISCO
 # ------------------------------------------------------------------------------
 echo
-echo "==> [3/5] Comprobando procesos ejecutando binarios borrados (post-actualización)..."
+echo "==> [4/6] Comprobando procesos ejecutando binarios borrados (post-actualización)..."
 deleted_pids=()
 for p in /proc/[0-9]*/exe; do
   [[ -e "$p" ]] || continue
@@ -233,10 +278,10 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 4. LIMPIEZA DE COREDUMPS DEL SISTEMA
+# 5. LIMPIEZA DE COREDUMPS DEL SISTEMA
 # ------------------------------------------------------------------------------
 echo
-echo "==> [4/5] Comprobando volcados de memoria (coredumpctl)..."
+echo "==> [5/6] Comprobando volcados de memoria (coredumpctl)..."
 cd_dir="/var/lib/systemd/coredump"
 cd_files_count=0
 cd_size="0"
@@ -268,10 +313,10 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 5. ACTUALIZACIÓN DEL INFORME
+# 6. ACTUALIZACIÓN DEL INFORME
 # ------------------------------------------------------------------------------
 echo
-echo "==> [5/5] Re-escaneo del sistema..."
+echo "==> [6/6] Re-escaneo del sistema..."
 ask "¿Desea ejecutar el escáner de estado ahora para refrescar el informe? [S/n]" ans_scan
 if [[ ! "$ans_scan" =~ ^[Nn] ]]; then
   if [[ -x "$CHECKER_SCRIPT" ]]; then

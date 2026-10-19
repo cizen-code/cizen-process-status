@@ -1,0 +1,12 @@
+[Unit]
+Description=Escáner horario de estado de procesos y servicios del sistema (Cizen)
+Documentation=file:///usr/local/bin/process-status/process-status-checker.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/process-status/process-status-checker.sh
+SyslogIdentifier=process-status-checker
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=5min
+KillMode=process

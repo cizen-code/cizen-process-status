@@ -1,0 +1,12 @@
+[Unit]
+Description=Temporizador horario para el escáner de estado de procesos (Cizen)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=10min
+AccuracySec=1min
+Unit=process-status-checker.service
+
+[Install]
+WantedBy=timers.target

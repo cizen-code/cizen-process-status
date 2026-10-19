@@ -1,0 +1,12 @@
+[Unit]
+Description=Notificar estado y anomalías de procesos al iniciar sesión gráfica (Cizen)
+After=graphical-session.target
+ConditionPathExists=/var/cache/process-status/report
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/process-status/process-status-notify-user.sh
+KillMode=process
+
+[Install]
+WantedBy=graphical-session.target

@@ -94,6 +94,14 @@ DAEMON_WHITELIST=(
   power-profiles-daemon
   haveged
   rngd
+  ksecretd
+  kwalletd5
+  kwalletd6
+  plasmalogin
+  upowerd
+  udisksd
+  accounts-daemon
+  systemd-userdbd
 )
 
 # v1.0.0: Comprueba si un comando está en la lista blanca de daemons

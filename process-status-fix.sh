@@ -260,7 +260,7 @@ if (( cd_count > 0 || cd_files_count > 0 )); then
       warn "No se pudieron eliminar todos los archivos de coredump."
     fi
     gear "Aspirando registros antiguos del journal..."
-    _priv journalctl --vacuum-time=3d 2>/dev/null || true
+    journalctl --vacuum-time=3d 2>/dev/null || sudo -n journalctl --vacuum-time=3d 2>/dev/null || true
     ok "Mantenimiento de coredumps y logs completado."
   fi
 else

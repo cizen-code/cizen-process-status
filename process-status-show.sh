@@ -20,10 +20,12 @@ CHECKER_SCRIPT="${BIN_DIR}/process-status-checker.sh"
 
 pause_final() {
   if [[ -n "${PS_AUTO_WINDOW:-${AUC_AUTO_WINDOW:-}}" ]]; then
-    read -r -p "Pulsa Enter para cerrar… " _
+    printf 'Pulsa Enter para cerrar… '
+    read -r _
   else
     echo "✔ Visor finalizado. (Ejecución manual: tu terminal permanece abierta.)"
-    read -r -p "Pulsa Enter para continuar… " _
+    printf 'Pulsa Enter para continuar… '
+    read -r _
   fi
 }
 
@@ -39,7 +41,8 @@ echo
 if [[ -s "$REPORT_FILE" ]]; then
   cat "$REPORT_FILE"
   echo
-  read -r -p "¿Desea abrir el asistente de arreglo ahora? [S/n] " r
+  printf '¿Desea abrir el asistente de arreglo ahora? [S/n] '
+  read -r r
   if [[ ! "$r" =~ ^[Nn] ]]; then
     if [[ -x "$FIX_SCRIPT" ]]; then
       exec env PS_ALREADY_SHOWN=1 PS_AUTO_WINDOW="${PS_AUTO_WINDOW:-${AUC_AUTO_WINDOW:-}}" "$FIX_SCRIPT"
@@ -52,7 +55,8 @@ if [[ -s "$REPORT_FILE" ]]; then
 else
   echo "No se encontró ningún informe en ${REPORT_FILE} (o está vacío)."
   echo
-  read -r -p "¿Desea ejecutar el escáner de estado ahora? [S/n] " r
+  printf '¿Desea ejecutar el escáner de estado ahora? [S/n] '
+  read -r r
   if [[ ! "$r" =~ ^[Nn] ]]; then
     if [[ -x "$CHECKER_SCRIPT" ]]; then
       if [[ ${EUID:-0} -ne 0 ]]; then
@@ -64,7 +68,8 @@ else
         echo
         cat "$REPORT_FILE"
         echo
-        read -r -p "¿Desea abrir el asistente de arreglo ahora? [S/n] " rfix
+        printf '¿Desea abrir el asistente de arreglo ahora? [S/n] '
+        read -r rfix
         if [[ ! "$rfix" =~ ^[Nn] && -x "$FIX_SCRIPT" ]]; then
           exec env PS_ALREADY_SHOWN=1 PS_AUTO_WINDOW="${PS_AUTO_WINDOW:-${AUC_AUTO_WINDOW:-}}" "$FIX_SCRIPT"
         fi

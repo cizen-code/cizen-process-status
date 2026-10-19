@@ -53,12 +53,21 @@ _priv() {
   fi
 }
 
+ask() {
+  local prompt="$1"
+  local varname="$2"
+  printf ' %b?%b %s ' "$W" "$prompt" "$N"
+  read -r "$varname"
+}
+
 pause_final() {
   if [[ -n "${PS_AUTO_WINDOW:-${AUC_AUTO_WINDOW:-}}" ]]; then
-    read -r -p "Pulsa Enter para cerrar… " _
+    printf 'Pulsa Enter para cerrar… '
+    read -r _
   else
     echo "✔ Asistente finalizado. (Ejecución manual: tu terminal permanece abierta.)"
-    read -r -p "Pulsa Enter para continuar… " _
+    printf 'Pulsa Enter para continuar… '
+    read -r _
   fi
 }
 
@@ -94,7 +103,7 @@ if (( ${#failed_sys[@]} > 0 )); then
     echo "Últimas líneas del registro (journalctl):"
     journalctl -u "$unit" -n 10 --no-pager 2>/dev/null || true
     echo
-    read -r -p "¿Reiniciar unidad '${unit}'? [S/n] " ans
+    ask "¿Reiniciar unidad '${unit}'? [S/n]" ans
     if [[ ! "$ans" =~ ^[Nn] ]]; then
       gear "Reiniciando ${unit}..."
       if _priv systemctl restart "$unit"; then
@@ -103,7 +112,7 @@ if (( ${#failed_sys[@]} > 0 )); then
         err "Fallo al reiniciar ${unit}."
       fi
     fi
-    read -r -p "¿Resetear estado de fallo (systemctl reset-failed '${unit}')? [S/n] " ans_reset
+    ask "¿Resetear estado de fallo (systemctl reset-failed '${unit}')? [S/n]" ans_reset
     if [[ ! "$ans_reset" =~ ^[Nn] ]]; then
       gear "Reseteando estado de fallo..."
       _priv systemctl reset-failed "$unit" && ok "Estado de fallo reseteado."
@@ -126,11 +135,11 @@ if (( ${#failed_usr[@]} > 0 )); then
     printf '%b✗ Unidad de usuario: %s%b\n' "$R" "$unit" "$N"
     journalctl --user-unit "$unit" -n 10 --no-pager 2>/dev/null || true
     echo
-    read -r -p "¿Reiniciar unidad de usuario '${unit}'? [S/n] " ans
+    ask "¿Reiniciar unidad de usuario '${unit}'? [S/n]" ans
     if [[ ! "$ans" =~ ^[Nn] ]]; then
       systemctl --user restart "$unit" && ok "Unidad ${unit} reiniciada."
     fi
-    read -r -p "¿Resetear estado de fallo de usuario? [S/n] " ans_reset
+    ask "¿Resetear estado de fallo de usuario? [S/n]" ans_reset
     if [[ ! "$ans_reset" =~ ^[Nn] ]]; then
       systemctl --user reset-failed "$unit" && ok "Estado reseteado."
     fi
@@ -158,7 +167,7 @@ if (( ${#zombie_pids[@]} > 0 )); then
     echo "-------------------------------------------------------"
     printf '  %b⚠ ZOMBI PID %s (%s)%b — Proceso padre: PID %s (%s)\n' "$Y" "$z_pid" "$z_comm" "$N" "$z_ppid" "$p_comm"
     info "Nota: Un proceso zombi ya murió; se mantiene en la tabla hasta que el padre llame a wait()."
-    read -r -p "¿Enviar señal SIGCHLD al padre (PID ${z_ppid}) para forzar recogida? [S/n] " ans_chld
+    ask "¿Enviar señal SIGCHLD al padre (PID ${z_ppid}) para forzar recogida? [S/n]" ans_chld
     if [[ ! "$ans_chld" =~ ^[Nn] ]]; then
       gear "Enviando SIGCHLD a PID ${z_ppid}..."
       if kill -CHLD "$z_ppid" 2>/dev/null || _priv kill -CHLD "$z_ppid"; then
@@ -176,7 +185,7 @@ if (( ${#zombie_pids[@]} > 0 )); then
     # Si sigue vivo y el padre no es init (PID 1)
     if [[ "$z_ppid" -gt 1 ]]; then
       warn "El zombi sigue presente y el proceso padre (${z_ppid}: ${p_comm}) no responde."
-      read -r -p "¿Desea terminar al proceso padre (${z_ppid}: ${p_comm}) con SIGTERM? [s/N] " ans_term
+      ask "¿Desea terminar al proceso padre (${z_ppid}: ${p_comm}) con SIGTERM? [s/N]" ans_term
       if [[ "$ans_term" =~ ^[SsYy] ]]; then
         gear "Enviando SIGTERM a ${z_ppid}..."
         kill -TERM "$z_ppid" 2>/dev/null || _priv kill -TERM "$z_ppid"
@@ -209,7 +218,7 @@ if (( ${#deleted_pids[@]} > 0 )); then
   for item in "${deleted_pids[@]}"; do
     IFS=":" read -r d_pid d_user d_comm d_target <<< "$item"
     printf '  · PID %s (%s) [%s] -> %s\n' "$d_pid" "$d_user" "$d_comm" "$d_target"
-    read -r -p "¿Enviar señal SIGTERM a PID ${d_pid} (${d_comm}) para recargarlo? [s/N] " ans_del
+    ask "¿Enviar señal SIGTERM a PID ${d_pid} (${d_comm}) para recargarlo? [s/N]" ans_del
     if [[ "$ans_del" =~ ^[SsYy] ]]; then
       gear "Enviando SIGTERM a PID ${d_pid}..."
       if kill -TERM "$d_pid" 2>/dev/null || _priv kill -TERM "$d_pid"; then
@@ -242,7 +251,7 @@ fi
 
 if (( cd_count > 0 || cd_files_count > 0 )); then
   info "Hay ${cd_count} volcados registrados en el journal y ${cd_files_count} archivos en ${cd_dir} (${cd_size})."
-  read -r -p "¿Purgar archivos de volcados en ${cd_dir}? [s/N] " ans_cd
+  ask "¿Purgar archivos de volcados en ${cd_dir}? [s/N]" ans_cd
   if [[ "$ans_cd" =~ ^[SsYy] ]]; then
     gear "Eliminando archivos de coredump en ${cd_dir}..."
     if _priv rm -f "${cd_dir}"/* 2>/dev/null; then
@@ -263,7 +272,7 @@ fi
 # ------------------------------------------------------------------------------
 echo
 echo "==> [5/5] Re-escaneo del sistema..."
-read -r -p "¿Desea ejecutar el escáner de estado ahora para refrescar el informe? [S/n] " ans_scan
+ask "¿Desea ejecutar el escáner de estado ahora para refrescar el informe? [S/n]" ans_scan
 if [[ ! "$ans_scan" =~ ^[Nn] ]]; then
   if [[ -x "$CHECKER_SCRIPT" ]]; then
     gear "Ejecutando escáner de estado..."

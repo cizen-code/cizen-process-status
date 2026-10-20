@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # process-status-checker.sh — Motor y escáner de estado de procesos y servicios
-# Suite: Process Status · Cizen (v1.0.0)
+# Suite: Process Status · Cizen (v1.0.1)
 #
 # Escanea:
 # 1. Unidades systemd fallidas (sistema + usuarios activos) con reinicios y timestamp
@@ -27,7 +27,7 @@ STATE_DIR="${CIZEN_PS_STATE_DIR:-/var/cache/process-status}"
 REPORT_FILE="${STATE_DIR}/report"
 HASH_FILE="${STATE_DIR}/hash"
 LOCK_FILE="${STATE_DIR}/checker.lock"
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.0.1"
 
 # v1.0.0: Colores solo cuando salida es interactiva
 if [ -t 1 ]; then
@@ -620,20 +620,45 @@ fi
 # ------------------------------------------------------------------------------
 # 9. PROCESOS BLOQUEADOS EN D-STATE (Uninterruptible Sleep / IO Hang)
 # ------------------------------------------------------------------------------
+# v1.0.1: D-State transitorio vs. bloqueo real. Un proceso entra en D (I/O sleep)
+# normalmente durante escrituras a disco; una única muestra de `ps` casi siempre
+# pilla alguno y genera falsas alarmas que desaparecen antes de abrir el
+# asistente. Para evitar falsos positivos solo se reporta un D-State que
+# PERSISTE en varias muestras consecutivas (I/O hang real). Nº de muestras y
+# espera configurables con CIZEN_PS_DSTATE_SAMPLES / CIZEN_PS_DSTATE_WAIT.
+DSTATE_SAMPLES="${CIZEN_PS_DSTATE_SAMPLES:-3}"
+DSTATE_WAIT="${CIZEN_PS_DSTATE_WAIT:-1}"
+[[ "$DSTATE_SAMPLES" =~ ^[0-9]+$ ]] && (( DSTATE_SAMPLES >= 1 )) || DSTATE_SAMPLES=3
+[[ "$DSTATE_WAIT" =~ ^[0-9]+$ ]] || DSTATE_WAIT=1
+
+declare -A dstate_hits=()
+declare -A dstate_meta=()
+for (( s=1; s<=DSTATE_SAMPLES; s++ )); do
+  while read -r d_pid d_user d_stat d_comm; do
+    [[ -n "$d_pid" ]] || continue
+    if is_dstate_stat "$d_stat"; then
+      dstate_hits["$d_pid"]=$(( ${dstate_hits["$d_pid"]:-0} + 1 ))
+      dstate_meta["$d_pid"]="${d_user}|${d_comm}"
+    fi
+  done < <(ps -eo pid,user,stat,comm --no-headers 2>/dev/null)
+  (( s < DSTATE_SAMPLES )) && sleep "$DSTATE_WAIT"
+done
+
 SEC_DSTATE=""
-while read -r d_pid d_user d_stat d_comm; do
-  [[ -n "$d_pid" ]] || continue
-  if is_dstate_stat "$d_stat"; then
+for d_pid in "${!dstate_hits[@]}"; do
+  # Solo es un bloqueo persistente si apareció en TODAS las muestras
+  if (( ${dstate_hits["$d_pid"]} >= DSTATE_SAMPLES )); then
     ((COUNT_DSTATE++))
+    IFS='|' read -r d_user d_comm <<< "${dstate_meta["$d_pid"]}"
     d_wchan="$(cat "/proc/${d_pid}/wchan" 2>/dev/null || echo "-")"
-    SEC_DSTATE+=$'  ⚠ PID: '"${d_pid} (${d_user}) | Comando: ${d_comm} | Wchan: ${d_wchan}"$'\n'
+    SEC_DSTATE+=$'  ⚠ PID: '"${d_pid} (${d_user}) | Comando: ${d_comm} | Wchan: ${d_wchan} | Persistente (${DSTATE_SAMPLES}/${DSTATE_SAMPLES} muestras)"$'\n'
   fi
-done < <(ps -eo pid,user,stat,comm --no-headers 2>/dev/null)
+done
 
 if (( COUNT_DSTATE > 0 )); then
-  ALERT_LIST+=("AVISO: ${COUNT_DSTATE} procesos en D-State (bloqueo I/O / kernel wait)")
+  ALERT_LIST+=("AVISO: ${COUNT_DSTATE} procesos bloqueados de forma persistente en D-State (posible I/O hang / kernel wait)")
 else
-  SEC_DSTATE="  ✓ Ningún proceso bloqueado en estado D (I/O sleep)."
+  SEC_DSTATE="  ✓ Ningún proceso bloqueado en estado D (I/O sleep) de forma persistente (${DSTATE_SAMPLES} muestras)."
 fi
 
 # ------------------------------------------------------------------------------

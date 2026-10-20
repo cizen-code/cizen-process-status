@@ -43,7 +43,7 @@ Esta suite sintetiza las mejores técnicas de herramientas de diagnóstico y adm
 6. **Procesos Zombi (Z / defunct):** Identificación de PIDs zombis, usuario, tiempo transcurrido (`etime`), comando y localización del proceso padre (`PPID`).
 7. **Procesos Huérfanos Fuera de Systemd:** Detección de procesos adoptados por PID 1 que no forman parte de servicios legítimos de systemd ni de la lista blanca de daemons.
 8. **Procesos en Segundo Plano (sin TTY):** Procesos de usuario (`UID >= 1000`) sin terminal de control (`TTY = ?`), con reporte de `cgroup`.
-9. **Procesos en D-State:** Procesos bloqueados en suspensión ininterrumpible (`uninterruptible sleep`), indicando función de espera en kernel (`wchan`) ante posibles bloqueos de E/S.
+9. **Procesos en D-State:** Procesos bloqueados en suspensión ininterrumpible (`uninterruptible sleep`), indicando función de espera en kernel (`wchan`) ante posibles bloqueos de E/S. Para evitar falsos positivos por I/O transitorio, solo se reporta un D-State que **persiste en varias muestras consecutivas** (por defecto 3; configurable con `CIZEN_PS_DSTATE_SAMPLES` y `CIZEN_PS_DSTATE_WAIT`).
 10. **Binarios Borrados en Disco:** Procesos en ejecución cuyo archivo binario original fue eliminado o reemplazado durante una actualización (`/proc/*/exe -> (deleted)`).
 11. **Top Consumo de Recursos:** Los 5 procesos con mayor consumo de CPU y los 5 procesos con mayor uso de memoria RAM (RSS formateado en MiB).
 

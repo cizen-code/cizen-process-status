@@ -39,16 +39,22 @@ echo "────────────────────────�
 echo
 
 if [[ -s "$REPORT_FILE" ]]; then
+  total_alerts="$(grep -oE 'Alertas: [0-9]+' "$REPORT_FILE" 2>/dev/null | awk '{print $2}')"
+  total_alerts="${total_alerts:-0}"
   cat "$REPORT_FILE"
   echo
-  printf '¿Desea abrir el asistente de arreglo ahora? [S/n] '
-  read -r r
-  if [[ ! "$r" =~ ^[Nn] ]]; then
-    if [[ -x "$FIX_SCRIPT" ]]; then
-      exec env PS_ALREADY_SHOWN=1 PS_AUTO_WINDOW="${PS_AUTO_WINDOW:-${AUC_AUTO_WINDOW:-}}" "$FIX_SCRIPT"
-    else
-      echo "Error: Asistente de arreglo no encontrado en $FIX_SCRIPT" >&2
-      pause_final
+  if [[ "$total_alerts" == "0" ]]; then
+    echo "✔ El informe no contiene anomalías: no hay nada que arreglar."
+  else
+    printf '¿Desea abrir el asistente de arreglo ahora? [S/n] '
+    read -r r
+    if [[ ! "$r" =~ ^[Nn] ]]; then
+      if [[ -x "$FIX_SCRIPT" ]]; then
+        exec env PS_ALREADY_SHOWN=1 PS_AUTO_WINDOW="${PS_AUTO_WINDOW:-${AUC_AUTO_WINDOW:-}}" "$FIX_SCRIPT"
+      else
+        echo "Error: Asistente de arreglo no encontrado en $FIX_SCRIPT" >&2
+        pause_final
+      fi
     fi
   fi
   pause_final

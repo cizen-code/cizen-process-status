@@ -20,7 +20,7 @@ Esta suite sintetiza las mejores técnicas de herramientas de diagnóstico y adm
 | Script / Fichero | Rol en la Suite | Espejo de… |
 | :--- | :--- | :--- |
 | `process-status-checker.sh` | Motor/escáner root con serialización `flock`. Genera `/var/cache/process-status/report` y notifica ante cambios de hash o alertas. | `arch-update-checker.sh` |
-| `process-status-show.sh` | Visor formateado del informe con pregunta interactiva `¿Desea abrir el asistente de arreglo ahora? [S/n]`. | `arch-show-pending.sh` |
+| `process-status-show.sh` | Visor formateado del informe. Solo si el informe tiene alertas (`Alertas: N > 0`) ofrece `¿Desea abrir el asistente de arreglo ahora? [S/n]`; con 0 alertas imprime `✔ El informe no contiene anomalías: no hay nada que arreglar.`. | `arch-show-pending.sh` |
 | `process-status-fix.sh` | Asistente interactivo guiado para reiniciar servicios fallidos, enviar `SIGCHLD` a padres de zombis, purgar coredumps y recargar binarios obsoletos. | `arch-apply-updates.sh` |
 | `process-status-menu.sh` | Menú interactivo en terminal con regla separadora de 55 guiones, funciones `hrow`/`opt` y selector `[0-N]`. | `kernel-update-menu.sh` |
 | `process-status-notify-agent.sh` | Agente gráfico de `notify-send` con botones de acción ("🛠 Arreglar ahora" y "📋 Ver informe") mediante `arch-open-terminal.sh`. | `arch-update-notify-agent.sh` |
